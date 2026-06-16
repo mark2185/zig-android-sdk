@@ -238,7 +238,10 @@ pub fn addSdkManagerStep(sdk: *Sdk) void {
     }
 }
 
-pub const CreateKey = struct {
+/// Deprecated: Use KeyToolOptions instead.
+pub const CreateKey = KeyToolOptions;
+
+pub const KeyToolOptions = struct {
     pub const Algorithm = enum {
         rsa,
 
@@ -259,18 +262,53 @@ pub const CreateKey = struct {
     /// https://stackoverflow.com/questions/3284055/what-should-i-use-for-distinguished-name-in-our-keystore-for-the-android-marke/3284135#3284135
     distinguished_name: []const u8,
 
-    /// Generates an example key that you can use for debugging your application locally
-    pub const example: CreateKey = .{
-        .alias = "default",
-        .password = "example_password",
+    /// Deprecated: Use KeyToolOptions.debug instead.
+    pub const example: KeyToolOptions = .debug;
+
+    /// Generates a debug key that you can use for debugging your application locally
+    /// as per Android API docs - https://developer.android.com/studio/publish/app-signing.html#debug-mode
+    pub const debug: KeyToolOptions = .{
+        .alias = "androiddebugkey",
+        .password = "android",
         .algorithm = .rsa,
-        .key_size_in_bits = 4096,
+        .key_size_in_bits = 2048,
         .validity_in_days = 10_000,
-        .distinguished_name = "CN=example.com, OU=ID, O=Example, L=Doe, S=Jane, C=GB",
+        .distinguished_name = "CN=Android Debug, O=Android, C=US",
     };
 };
 
-pub fn createKeyStore(sdk: *const Sdk, options: CreateKey) KeyStore {
+fn getDebugKeystorePath() LazyPath {
+    return .{
+        .cwd_relative = switch (builtin.os.tag) {
+            .linux, .macos => "/home/mark/.android/debug.keystore",
+            // TODO: figure out how to refer to ~ on windows
+            // usually it's: C:\\Users\\user\\.android\\
+            .windows => @compileError("windows not supported yet"),
+            else => unreachable,
+        },
+    };
+}
+
+fn debugKeystoreExists() bool {
+    const debug_keystore = getDebugKeystorePath();
+
+    _ = debug_keystore;
+
+    // TODO: how to check if a file exists during the build phase?
+
+    return false;
+}
+
+pub fn createKeyStore(sdk: *const Sdk, options: KeyToolOptions) KeyStore {
+    if (debugKeystoreExists()) {
+        std.debug.print("Debug keystore exists!\n", .{});
+        return .{
+            .file = getDebugKeystorePath(),
+            .password = options.password,
+        };
+    }
+    std.debug.print("Debug keystore does not exist, creating a new one!\n", .{});
+
     const b = sdk.b;
     const keytool = b.addSystemCommand(&.{
         // https://docs.oracle.com/en/java/javase/17/docs/specs/man/keytool.html
@@ -280,7 +318,9 @@ pub fn createKeyStore(sdk: *const Sdk, options: CreateKey) KeyStore {
     });
     keytool.setName(runNameContext("keytool"));
     keytool.addArg("-keystore");
-    const keystore_file = keytool.addOutputFileArg("zig-generated.keystore");
+
+    const keystore_file = getDebugKeystorePath();
+    keytool.addArg(keystore_file.cwd_relative);
     keytool.addArgs(&.{
         // -alias "ca"
         "-alias",
@@ -300,9 +340,10 @@ pub fn createKeyStore(sdk: *const Sdk, options: CreateKey) KeyStore {
         "-dname",
         options.distinguished_name,
     });
+    b.getInstallStep().dependOn(&keytool.step);
     // ignore stderr, it just gives you an output like:
-    // "Generating 4,096 bit RSA key pair and self-signed certificate (SHA384withRSA) with a validity of 10,000 days
-    // for: CN=example.com, OU=ID, O=Example, L=Doe, ST=Jane, C=GB"
+    // "Generating 2,048 bit RSA key pair and self-signed certificate (SHA384withRSA) with a validity of 10,000 days
+    // for: CN=Android Debug, O=Android, C=US"
     _ = if (builtin.zig_version.major == 0 and builtin.zig_version.minor <= 15)
         keytool.captureStdErr()
     else

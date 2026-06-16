@@ -176,7 +176,7 @@ pub fn addJavaSourceFiles(apk: *Apk, options: AddJavaSourceFilesOptions) void {
 /// This is required run on an Android device.
 ///
 /// If you want to just use a temporary key for local development, do something like this:
-/// - apk.setKeyStore(android_sdk.createKeyStore(.example);
+/// - apk.setKeyStore(android_sdk.createKeyStore(.debug);
 pub fn setKeyStore(apk: *Apk, key_store: KeyStore) void {
     apk.key_store = key_store;
 }
@@ -802,10 +802,16 @@ fn doInstallApk(apk: *Apk) Allocator.Error!*Step.InstallFile {
             apk.build_tools.apksigner,
             "sign",
         });
+        for (b.getInstallStep().dependencies.items) |s| {
+            std.debug.print("Dependency: {s}\n", .{s.name});
+            if (std.mem.eql(u8, s.name, "zig-android-sdk keytool")) {
+                apksigner.step.dependOn(@constCast(s));
+            }
+        }
         try apk.updatePathWithJdk(apksigner);
         apksigner.setName(runNameContext("apksigner"));
         apksigner.addArg("--ks"); // ks = keystore
-        apksigner.addFileArg(key_store.file);
+        apksigner.addArg("/home/mark/.android/debug.keystore");
         apksigner.addArgs(&.{ "--ks-pass", b.fmt("pass:{s}", .{key_store.password}) });
         apksigner.addArg("--out");
         const signed_output_apk_file = apksigner.addOutputFileArg("signed-and-aligned-apk.apk");

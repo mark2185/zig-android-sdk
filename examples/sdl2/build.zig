@@ -27,7 +27,7 @@ pub fn build(b: *std.Build) void {
             .ndk_version = "29.0.14206865",
         });
 
-        const key_store_file = android_sdk.createKeyStore(.example);
+        const key_store_file = android_sdk.createKeyStore(.debug);
         apk.setKeyStore(key_store_file);
         apk.setAndroidManifest(b.path("android/AndroidManifest.xml"));
         apk.addResourceDirectory(b.path("android/res"));
@@ -130,6 +130,13 @@ pub fn build(b: *std.Build) void {
     if (android_apk) |apk| {
         const installed_apk = apk.addInstallApk();
         b.getInstallStep().dependOn(&installed_apk.step);
+        for (b.getInstallStep().dependencies.items) |s| {
+            std.debug.print("step: {s}\n", .{s.name});
+            if (std.mem.eql(u8, s.name, "zig-android-sdk keytool")) {
+                std.debug.print("Adding a dependency\n", .{});
+                installed_apk.step.dependOn(@constCast(s));
+            }
+        }
 
         const android_sdk = apk.sdk;
         const run_step = b.step("run", "Install and run the application on an Android device");
