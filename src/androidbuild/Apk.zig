@@ -62,7 +62,7 @@ pub const Options = struct {
     /// "37.0.0" will use "$ANDROID_HOME/build-tools/37.0.0" which contains tools like:
     /// "aapt2", "zipalign", "apksigner", "d8"
     build_tools_version: []const u8,
-    /// "27.0.12077973" will is used to access:
+    /// "27.0.12077973" is used to access:
     /// - Include headers:  $ANDROID_HOME/ndk/27.0.12077973/toolchains/llvm/prebuilt/YOUR_HOST_OS_HERE/sysroot/usr/include
     /// - System libraries: $ANDROID_HOME/ndk/27.0.12077973/toolchains/llvm/prebuilt/YOUR_HOST_OS_HERE/sysroot/usr/lib
     ndk_version: []const u8,
